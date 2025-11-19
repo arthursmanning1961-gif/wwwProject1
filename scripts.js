@@ -14,7 +14,9 @@ const mouse = {
     x: undefined,
     y: undefined,
     isDown: false,
-    draggedBall: null // Stores the ball currently being dragged
+    draggedBall: null, // Stores the ball currently being dragged
+    lastX: 0, // Store last mouse position for velocity calculation
+    lastY: 0
 };
 
 /**
@@ -56,8 +58,8 @@ class Ball {
         // Apply velocity to update position
         this.x += this.vx;
         this.y += this.vy;
-
-         //  this.draw();
+        
+        // **Removed this.draw() - drawing is handled in the animate loop**
     }
 }
 
@@ -90,20 +92,19 @@ function animate() {
 
     // Update and draw all balls
     balls.forEach(ball => {
-        // If a ball is being dragged, override its velocity and set its position to the mouse position
+        // If a ball is being dragged, override its position
         if (ball === mouse.draggedBall) {
-            // Smoothly move the ball towards the mouse position
-            const damping = 0.5; // Controls how quickly the ball stops after release
-            ball.vx = (mouse.x - ball.x) * damping;
-            ball.vy = (mouse.y - ball.y) * damping;
+            // Set position directly to mouse coordinates
             ball.x = mouse.x;
             ball.y = mouse.y;
+            // The velocity calculation for the "flick" is now handled on mouseup
         } else {
             // For non-dragged balls, run the normal update logic (bouncing)
             ball.update();
         }
-
-        ball.draw();
+        
+        // **FIX 1: Call draw() for ALL balls to keep the dragged ball visible.**
+        ball.draw(); 
     });
 }
 
@@ -115,21 +116,27 @@ canvas.addEventListener('mousemove', (event) => {
     mouse.x = event.offsetX;
     mouse.y = event.offsetY;
 
-    // If a ball is being dragged, update its position immediately
+    // Store mouse coordinates to calculate velocity on the next frame (or on release)
     if (mouse.draggedBall) {
-        mouse.draggedBall.x = mouse.x;
-        mouse.draggedBall.y = mouse.y;
+        // Calculate velocity (difference in position)
+        mouse.draggedBall.vx = (mouse.x - mouse.lastX) * 0.8; // Dampen the flick velocity slightly
+        mouse.draggedBall.vy = (mouse.y - mouse.lastY) * 0.8;
     }
+    
+    mouse.lastX = mouse.x;
+    mouse.lastY = mouse.y;
 });
 
 canvas.addEventListener('mousedown', (event) => {
     mouse.isDown = true;
+    mouse.lastX = event.offsetX;
+    mouse.lastY = event.offsetY;
 
     // Check if the click is near any ball (within its radius + a buffer)
     for (const ball of balls) {
         const distance = Math.hypot(mouse.x - ball.x, mouse.y - ball.y);
 
-        // If the click is close enough to the ball (e.g., within 30 pixels)
+        // If the click is close enough to the ball (e.g., within 15 pixels of the edge)
         if (distance < ball.radius + 15) {
             mouse.draggedBall = ball; // Select this ball for dragging
             break;
@@ -142,11 +149,9 @@ canvas.addEventListener('mouseup', () => {
 
     // When the mouse is released, the ball is no longer dragged
     if (mouse.draggedBall) {
-        // A temporary drag fix: Apply the current velocity from the drag logic
-        // This makes the ball "flick" in the direction the mouse was moving when released
-        mouse.draggedBall.vx /= 0.5;
-        mouse.draggedBall.vy /= 0.5;
-
+        // **FIX 2: The velocity was already calculated in mousemove. We just need to stop dragging.**
+        // The ball's last calculated vx and vy now serve as the initial velocity for the bouncing physics.
+        
         mouse.draggedBall = null;
     }
 });
