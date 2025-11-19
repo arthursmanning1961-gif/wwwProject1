@@ -1,3 +1,4 @@
+// update 11/19/25-3:04
 // Get the canvas element and its 2D rendering context
 const canvas = document.getElementById('bouncingCanvas');
 const ctx = canvas.getContext('2d');
