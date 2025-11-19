@@ -57,7 +57,7 @@ class Ball {
         this.x += this.vx;
         this.y += this.vy;
 
-        this.draw();
+         //  this.draw();
     }
 }
 
@@ -102,6 +102,8 @@ function animate() {
             // For non-dragged balls, run the normal update logic (bouncing)
             ball.update();
         }
+
+        ball.draw();
     });
 }
 
