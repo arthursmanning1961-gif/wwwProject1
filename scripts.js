@@ -1,5 +1,6 @@
 // balls bounce off each other - atm 11/19/25 - 3:11
 // update 11/19/25-3:04
+// mass proportional to ball size added - atm 3?16
 // Get the canvas element and its 2D rendering context
 const canvas = document.getElementById('bouncingCanvas');
 const ctx = canvas.getContext('2d');
@@ -17,9 +18,11 @@ const mouse = {
     y: undefined,
     isDown: false,
     draggedBall: null, // Stores the ball currently being dragged
-    lastX: 0, // Store last mouse position for velocity calculation
+    lastX: 0, // Store last mouse position
     lastY: 0
 };
+
+// --- Collision Logic (No changes needed here for mass-proportional dragging) ---
 
 /**
  * Ball class definition
@@ -31,11 +34,11 @@ class Ball {
         this.radius = radius;
         this.color = color;
         // Initial velocity (how fast and in what direction the ball moves)
-        // Reduced initial velocity for better control and stability with collisions
         this.vx = (Math.random() - 0.5) * 1.5;
         this.vy = (Math.random() - 0.5) * 1.5;
-        // Mass is now proportional to the volume (radius cubed)
-        this.mass = Math.PI * radius * radius; 
+        
+        // Mass is proportional to volume (radius cubed) for a stronger effect
+        this.mass = Math.PI * radius * radius * radius / 100; // Scaling down the mass value
     }
 
     // Method to draw the ball on the canvas
@@ -52,9 +55,7 @@ class Ball {
         // --- Boundary/Wall Collision ---
         // Bounce off left/right walls
         if (this.x + this.radius > canvas.width || this.x - this.radius < 0) {
-            // Apply slight damping to simulate energy loss
             this.vx = -this.vx * 0.98;
-            // Reposition the ball slightly if it gets stuck
             if (this.x + this.radius > canvas.width) this.x = canvas.width - this.radius;
             if (this.x - this.radius < 0) this.x = this.radius;
         }
@@ -80,23 +81,20 @@ function distance(x1, y1, x2, y2) {
     return Math.sqrt(xDist * xDist + yDist * yDist);
 }
 
+// ... (Collision Resolution functions: resolveCollision, rotate remain the same) ...
+
 /**
  * Collision Resolution (Elastic Collision)
  * This function handles both preventing overlap and calculating new velocities.
- * @param {Ball} ballA - The first ball object
- * @param {Ball} ballB - The second ball object
+ * ... (function body remains the same as previous response) ...
  */
 function resolveCollision(ballA, ballB) {
     const xDist = ballB.x - ballA.x;
     const yDist = ballB.y - ballA.y;
     const dist = distance(ballA.x, ballA.y, ballB.x, ballB.y);
 
-    // Skip resolution if they are not touching or if they are the same object
     if (dist <= ballA.radius + ballB.radius) {
-        // 1. **Collision Angle/Normal Vector**
         const angle = Math.atan2(yDist, xDist);
-
-        // 2. **Prevent Overlap (Pushing them apart)**
         const overlap = (ballA.radius + ballB.radius) - dist;
         const totalMass = ballA.mass + ballB.mass;
         const sepA = overlap * (ballB.mass / totalMass);
@@ -107,26 +105,21 @@ function resolveCollision(ballA, ballB) {
         ballB.x += Math.cos(angle) * sepB;
         ballB.y += Math.sin(angle) * sepB;
 
-        // 3. **Velocity Calculation (1D rotation for elastic collision)**
-        // Rotate the velocities to align with the collision axis
-        const u1 = rotate(ballA.vx, ballA.vy, angle); // u1 is an object {x: speed_in_collision_axis, y: speed_perpendicular_to_axis}
+        const u1 = rotate(ballA.vx, ballA.vy, angle);
         const u2 = rotate(ballB.vx, ballB.vy, angle);
 
-        // Apply the 1D collision formula on the X-axis (collision axis)
         const v1 = {
             x: u1.x * (ballA.mass - ballB.mass) / totalMass + u2.x * 2 * ballB.mass / totalMass,
-            y: u1.y // Velocity perpendicular to collision axis remains unchanged
+            y: u1.y
         };
         const v2 = {
             x: u2.x * (ballB.mass - ballA.mass) / totalMass + u1.x * 2 * ballA.mass / totalMass,
             y: u2.y
         };
 
-        // Rotate the resulting velocities back to the original coordinate system
         const vf1 = rotate(v1.x, v1.y, -angle);
         const vf2 = rotate(v2.x, v2.y, -angle);
 
-        // 4. **Apply New Velocities**
         ballA.vx = vf1.x;
         ballA.vy = vf1.y;
         ballB.vx = vf2.x;
@@ -146,28 +139,23 @@ function rotate(x, y, angle) {
 
 /**
  * Initialization: Create a set of balls
+ * ... (function body remains the same as previous response) ...
  */
 function init() {
-    // Generate 10 random balls
     for (let i = 0; i < 10; i++) {
-        // Ensure balls start fully within the canvas
-        const radius = Math.random() * 10 + 8; // Radius between 8 and 18
-        
+        const radius = Math.random() * 10 + 8;
         let x = Math.random() * (canvas.width - radius * 2) + radius;
         let y = Math.random() * (canvas.height - radius * 2) + radius;
 
         // Check for overlap with existing balls before placing
         for (let j = 0; j < balls.length; j++) {
             if (distance(x, y, balls[j].x, balls[j].y) < radius + balls[j].radius) {
-                // If overlap, regenerate position
                 x = Math.random() * (canvas.width - radius * 2) + radius;
                 y = Math.random() * (canvas.height - radius * 2) + radius;
-                j = -1; // Restart check
+                j = -1;
             }
         }
-
         const color = `hsl(${Math.random() * 360}, 50%, 50%)`;
-
         balls.push(new Ball(x, y, radius, color));
     }
 }
@@ -183,7 +171,6 @@ function animate() {
     // Collision Detection Loop
     for (let i = 0; i < balls.length; i++) {
         for (let j = i + 1; j < balls.length; j++) {
-            // Check every ball against every other ball (only once per pair)
             resolveCollision(balls[i], balls[j]);
         }
     }
@@ -192,10 +179,13 @@ function animate() {
     balls.forEach(ball => {
         // Drag logic overrides physics
         if (ball === mouse.draggedBall) {
-            // Set position directly to mouse coordinates
-            ball.x = mouse.x;
-            ball.y = mouse.y;
-            // The velocity calculation for the "flick" is handled in mousemove
+            // **New:** Integrate velocity (calculated in mousemove) to update position
+            ball.x += ball.vx;
+            ball.y += ball.vy;
+            
+            // Add slight friction/drag even during mouse control
+            ball.vx *= 0.95;
+            ball.vy *= 0.95;
         } else {
             // Normal physics update (wall bouncing)
             ball.update();
@@ -215,11 +205,25 @@ canvas.addEventListener('mousemove', (event) => {
     mouse.y = event.offsetY;
 
     if (mouse.draggedBall) {
-        // Calculate velocity (difference in position) for the "flick" on release
-        mouse.draggedBall.vx = (mouse.x - mouse.lastX); 
-        mouse.draggedBall.vy = (mouse.y - mouse.lastY);
+        const ball = mouse.draggedBall;
+        
+        // Calculate the vector of the mouse movement (Force direction)
+        const dx = mouse.x - ball.x;
+        const dy = mouse.y - ball.y;
+        
+        // **MASS-PROPORTIONAL INTERACTION:**
+        // 1. Calculate the desired acceleration vector (based on distance to mouse).
+        // The mouse position acts as a target, creating a "spring" force.
+        const targetAccelerationX = dx * 0.05;
+        const targetAccelerationY = dy * 0.05;
+        
+        // 2. Apply the acceleration (Force / Mass). 
+        // Lighter balls (small mass) will have larger acceleration (a = F/m).
+        ball.vx += targetAccelerationX / ball.mass;
+        ball.vy += targetAccelerationY / ball.mass;
     }
     
+    // Store last mouse position for the next frame
     mouse.lastX = mouse.x;
     mouse.lastY = mouse.y;
 });
@@ -244,7 +248,8 @@ canvas.addEventListener('mouseup', () => {
     mouse.isDown = false;
 
     if (mouse.draggedBall) {
-        // The last recorded vx/vy in mousemove is applied as the starting velocity
+        // Stop dragging. The ball now continues with the momentum (vx/vy) it accumulated
+        // during the drag, ensuring a "flick" effect that respects its mass.
         mouse.draggedBall = null;
     }
 });
